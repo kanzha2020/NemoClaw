@@ -24,6 +24,34 @@ const PORT = parseInt(process.env.JENSENCLAW_PORT || "18789", 10);
 const API_KEY = process.env.NVIDIA_API_KEY;
 const API_BASE = process.env.INFERENCE_URL || "https://integrate.api.nvidia.com/v1";
 const MODEL = process.env.INFERENCE_MODEL || "nvidia/nemotron-3-super-120b-a12b";
+
+// ── Curated model config (mirrors nemoclaw/src/proxy/models.ts) ──
+const CURATED_MODELS = {
+  "moonshotai/kimi-k2.5": {
+    prefixedId: "private/openshell/moonshotai/kimi-k2.5",
+    extraBody: { chat_template_kwargs: { thinking: true } },
+  },
+  "minimaxai/minimax-m2.5": {
+    prefixedId: "private/openshell/minimaxai/minimax-m2.5",
+    extraBody: {},
+  },
+  "z-ai/glm5": {
+    prefixedId: "private/openshell/z-ai/glm5",
+    extraBody: { chat_template_kwargs: { enable_thinking: true } },
+  },
+  "nvidia/nemotron-3-super": {
+    prefixedId: "private/openshell/nvidia/nemotron-3-super",
+    extraBody: { chat_template_kwargs: { enable_thinking: true, force_nonempty_content: true } },
+  },
+  "openai/gpt-oss-120b": {
+    prefixedId: "private/openshell/openai/gpt-oss-120b",
+    extraBody: { reasoning_effort: "high" },
+  },
+};
+const PROXY_HEADERS = {
+  "NVCF-POLL-SECONDS": "1800",
+  "X-BILLING-INVOKE-ORIGIN": "openshell",
+};
 const SANDBOX = process.env.SANDBOX_NAME || (() => {
   // Read default sandbox from nemoclaw registry
   try {
@@ -137,12 +165,22 @@ function runAgentInSandbox(message, sessionId) {
 }
 
 function proxyInference(messages, res) {
-  const body = JSON.stringify({
-    model: MODEL,
+  const curated = CURATED_MODELS[MODEL];
+
+  const bodyObj = {
+    model: curated ? curated.prefixedId : MODEL,
     messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-    max_tokens: 1024,
     stream: true,
-  });
+    temperature: 1.0,
+    top_p: 0.95,
+    max_tokens: 8192,
+  };
+
+  if (curated) {
+    Object.assign(bodyObj, curated.extraBody);
+  }
+
+  const body = JSON.stringify(bodyObj);
 
   const url = new URL(`${API_BASE}/chat/completions`);
   const options = {
@@ -152,8 +190,10 @@ function proxyInference(messages, res) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(body),
       Authorization: `Bearer ${API_KEY}`,
       Accept: "text/event-stream",
+      ...PROXY_HEADERS,
     },
   };
 

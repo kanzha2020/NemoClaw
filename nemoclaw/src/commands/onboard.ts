@@ -11,6 +11,7 @@ import {
 } from "../onboard/config.js";
 import { promptInput, promptConfirm, promptSelect } from "../onboard/prompt.js";
 import { validateApiKey, maskApiKey } from "../onboard/validate.js";
+import { getAllCuratedModels } from "../proxy/models.js";
 
 export interface OnboardOptions {
   apiKey?: string;
@@ -31,6 +32,7 @@ const DEFAULT_MODELS = [
   { id: "nvidia/llama-3.1-nemotron-ultra-253b-v1", label: "Nemotron Ultra 253B" },
   { id: "nvidia/llama-3.3-nemotron-super-49b-v1.5", label: "Nemotron Super 49B v1.5" },
   { id: "nvidia/nemotron-3-nano-30b-a3b", label: "Nemotron 3 Nano 30B" },
+  ...getAllCuratedModels().map((m) => ({ id: m.id, label: `${m.label} (curated)` })),
 ];
 
 function resolveProfile(endpointType: EndpointType): string {
@@ -274,6 +276,13 @@ export async function cliOnboard(opts: OnboardOptions): Promise<void> {
   logger.info("Applying configuration...");
 
   // 7a: Create/update provider
+  // For "build" endpoints, route through the local policy-proxy so that
+  // curated-model header/body injection happens transparently.
+  const proxyPort = opts.pluginConfig.proxyPort;
+  const providerBaseUrl = endpointType === "build"
+    ? `http://127.0.0.1:${String(proxyPort)}/v1`
+    : endpointUrl;
+
   try {
     const result = execSync(
       [
@@ -287,7 +296,7 @@ export async function cliOnboard(opts: OnboardOptions): Promise<void> {
         "--credential",
         `${credentialEnv}=${apiKey}`,
         "--config",
-        `OPENAI_BASE_URL=${endpointUrl}`,
+        `OPENAI_BASE_URL=${providerBaseUrl}`,
       ].join(" "),
       { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] },
     );
@@ -304,6 +313,10 @@ export async function cliOnboard(opts: OnboardOptions): Promise<void> {
       logger.error(`Failed to create provider: ${stderr || String(err)}`);
       return;
     }
+  }
+
+  if (endpointType === "build") {
+    logger.info(`Policy-proxy active on port ${String(proxyPort)} (curated model support)`);
   }
 
   // 7b: Set inference route

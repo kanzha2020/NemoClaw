@@ -25,6 +25,11 @@
         "type": "string",
         "description": "Default inference provider type (nvidia, vllm, openai-compatible)",
         "default": "nvidia"
+      },
+      "proxyPort": {
+        "type": "number",
+        "description": "Local port for the policy-proxy (header/body injection for curated models)",
+        "default": 18990
       }
     },
     "additionalProperties": false

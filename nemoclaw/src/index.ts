@@ -12,9 +12,12 @@
  */
 
 import type { Command } from "commander";
+import type http from "node:http";
 import { registerCliCommands } from "./cli.js";
 import { handleSlashCommand } from "./commands/slash.js";
 import { loadOnboardConfig } from "./onboard/config.js";
+import { getAllCuratedModels } from "./proxy/models.js";
+import { startProxyServer } from "./proxy/server.js";
 
 // ---------------------------------------------------------------------------
 // OpenClaw Plugin SDK compatible types (mirrors openclaw/plugin-sdk)
@@ -141,6 +144,7 @@ export interface NemoClawConfig {
   blueprintRegistry: string;
   sandboxName: string;
   inferenceProvider: string;
+  proxyPort: number;
 }
 
 const DEFAULT_PLUGIN_CONFIG: NemoClawConfig = {
@@ -148,6 +152,7 @@ const DEFAULT_PLUGIN_CONFIG: NemoClawConfig = {
   blueprintRegistry: "ghcr.io/nvidia/nemoclaw-blueprint",
   sandboxName: "openclaw",
   inferenceProvider: "nvidia",
+  proxyPort: 18990,
 };
 
 export function getPluginConfig(api: OpenClawPluginApi): NemoClawConfig {
@@ -169,6 +174,10 @@ export function getPluginConfig(api: OpenClawPluginApi): NemoClawConfig {
       typeof raw["inferenceProvider"] === "string"
         ? raw["inferenceProvider"]
         : DEFAULT_PLUGIN_CONFIG.inferenceProvider,
+    proxyPort:
+      typeof raw["proxyPort"] === "number"
+        ? (raw["proxyPort"] as number)
+        : DEFAULT_PLUGIN_CONFIG.proxyPort,
   };
 }
 
@@ -177,6 +186,8 @@ export function getPluginConfig(api: OpenClawPluginApi): NemoClawConfig {
 // ---------------------------------------------------------------------------
 
 export default function register(api: OpenClawPluginApi): void {
+  const pluginConfig = getPluginConfig(api);
+
   // 1. Register /nemoclaw slash command (chat interface)
   api.registerCommand({
     name: "nemoclaw",
@@ -199,6 +210,14 @@ export default function register(api: OpenClawPluginApi): void {
   const providerLabel = onboardCfg
     ? `NVIDIA NIM (${onboardCfg.endpointType}${onboardCfg.ncpPartner ? ` - ${onboardCfg.ncpPartner}` : ""})`
     : "NVIDIA NIM (build.nvidia.com)";
+
+  // Build model catalog: existing models + curated models from proxy config
+  const curatedEntries = getAllCuratedModels().map((m) => ({
+    id: m.id,
+    label: m.label,
+    contextWindow: m.contextWindow,
+    maxOutput: m.maxOutput,
+  }));
 
   api.registerProvider({
     id: "nvidia-nim",
@@ -232,6 +251,7 @@ export default function register(api: OpenClawPluginApi): void {
           contextWindow: 131072,
           maxOutput: 4096,
         },
+        ...curatedEntries,
       ],
     },
     auth: [
@@ -244,8 +264,33 @@ export default function register(api: OpenClawPluginApi): void {
     ],
   });
 
+  // 4. Register policy-proxy service (header/body injection for curated models)
+  let proxyServerRef: http.Server | null = null;
+
+  api.registerService({
+    id: "policy-proxy",
+    start: (ctx) => {
+      const apiKey = process.env[providerCredentialEnv] ?? "";
+      const upstreamUrl = onboardCfg?.endpointUrl ?? "https://integrate.api.nvidia.com/v1";
+
+      proxyServerRef = startProxyServer({
+        port: pluginConfig.proxyPort,
+        upstreamUrl,
+        apiKey,
+        logger: ctx.logger,
+      });
+    },
+    stop: () => {
+      if (proxyServerRef) {
+        proxyServerRef.close();
+        proxyServerRef = null;
+      }
+    },
+  });
+
   const bannerEndpoint = onboardCfg?.endpointType ?? "build.nvidia.com";
   const bannerModel = onboardCfg?.model ?? "nvidia/nemotron-3-super-120b-a12b";
+  const proxyUrl = `http://127.0.0.1:${String(pluginConfig.proxyPort)}`;
 
   api.logger.info("");
   api.logger.info("  ┌─────────────────────────────────────────────────────┐");
@@ -253,6 +298,7 @@ export default function register(api: OpenClawPluginApi): void {
   api.logger.info("  │                                                     │");
   api.logger.info(`  │  Endpoint:  ${bannerEndpoint.padEnd(40)}│`);
   api.logger.info(`  │  Model:     ${bannerModel.padEnd(40)}│`);
+  api.logger.info(`  │  Proxy:     ${proxyUrl.padEnd(40)}│`);
   api.logger.info("  │  Commands:  openclaw nemoclaw <command>             │");
   api.logger.info("  └─────────────────────────────────────────────────────┘");
   api.logger.info("");
