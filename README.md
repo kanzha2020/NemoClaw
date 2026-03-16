@@ -4,7 +4,7 @@
 [![Security Policy](https://img.shields.io/badge/Security-Report%20a%20Vulnerability-red)](SECURITY.md)
 [![Project Status](https://img.shields.io/badge/status-alpha-orange)](docs/about/release-notes.md)
 
-NemoClaw is the [OpenClaw](https://openclaw.ai) plugin for [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell). It moves OpenClaw into a sandboxed environment where every network request, file access, and inference call is governed by declarative policy with NVIDIA inference routing through Nemotron models through [build.nvidia.com](https://build.nvidia.com), a local NIM service, or vLLM.
+NVIDIA NemoClaw is an open source stack that simplifies running [OpenClaw](https://openclaw.ai) always-on assistants safely. It installs the [NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell) runtime, part of [NVIDIA Agent Toolkit](https://developer.nvidia.com/agent-toolkit), a secure environment for running autonomous agents, and open source models like [NVIDIA Nemotron](https://build.nvidia.com).
 
 > **Alpha software**
 > 
@@ -91,7 +91,7 @@ sandbox@my-assistant:~$ openclaw agent --agent main --local -m "hello" --session
 
 ## How It Works
 
-NemoClaw combines a lightweight TypeScript plugin with a versioned Python blueprint to move OpenClaw into a controlled sandbox. The plugin registers commands under the `openclaw nemoclaw` namespace and delegates orchestration to the blueprint, which drives all interactions with the OpenShell CLI.
+NemoClaw installs the NVIDIA OpenShell runtime and Nemotron models, then uses a versioned blueprint to create a sandboxed environment where every network request, file access, and inference call is governed by declarative policy. The `nemoclaw` CLI orchestrates the full stack: OpenShell gateway, sandbox, inference provider, and network policy.
 
 | Component        | Role                                                                                      |
 |------------------|-------------------------------------------------------------------------------------------|
@@ -101,6 +101,8 @@ NemoClaw combines a lightweight TypeScript plugin with a versioned Python bluepr
 | **Inference**    | NVIDIA-routed model calls (cloud, local NIM, or vLLM), transparent to the agent.          |
 
 The blueprint lifecycle follows five stages: resolve the artifact, verify its digest, plan the resources, apply through the OpenShell CLI, and report status or rollback from a snapshot.
+
+When something goes wrong, errors may originate from either NemoClaw or the OpenShell layer underneath. Run `nemoclaw <name> status` for NemoClaw-level health and `openshell sandbox list` to check the underlying sandbox state.
 
 ## Inference Profiles
 
@@ -134,20 +136,37 @@ When the agent tries to reach an unlisted host, OpenShell blocks the request and
 
 ## Key Commands
 
+### Host commands (`nemoclaw`)
+
+Run these on the host to set up, connect to, and manage sandboxes.
+
+| Command                              | Description                                            |
+|--------------------------------------|--------------------------------------------------------|
+| `nemoclaw setup`                     | Full host-side setup: gateway, providers, sandbox.     |
+| `nemoclaw deploy <instance>`         | Deploy to a remote GPU instance through Brev.          |
+| `nemoclaw <name> connect`            | Open an interactive shell inside the sandbox.          |
+| `nemoclaw term`                      | Launch the OpenShell TUI for monitoring and approvals. |
+| `nemoclaw start` / `stop` / `status` | Manage auxiliary services (Telegram bridge, tunnel).   |
+
+### Plugin commands (`openclaw nemoclaw`)
+
+Run these inside the OpenClaw CLI. These commands are under active development and may not all be functional yet.
+
 | Command                                    | Description                                              |
 |--------------------------------------------|----------------------------------------------------------|
-| `nemoclaw setup`                           | Full host-side setup: gateway, providers, sandbox.       |
-| `nemoclaw deploy <instance>`               | Deploy to a remote GPU instance through Brev.            |
-| `nemoclaw <name> connect`                  | Open an interactive shell inside the sandbox.            |
-| `nemoclaw term`                            | Launch the OpenShell TUI for monitoring and approvals.   |
-| `nemoclaw start` / `stop` / `status`       | Manage auxiliary services (Telegram bridge, tunnel).     |
 | `openclaw nemoclaw launch [--profile ...]` | Bootstrap OpenClaw inside an OpenShell sandbox.          |
-| `openclaw nemoclaw migrate [--dry-run]`    | Migrate a host OpenClaw installation into a sandbox.     |
+| `openclaw nemoclaw migrate [--dry-run]`    | Migrate a host OpenClaw installation into a sandbox. |
 | `openclaw nemoclaw status`                 | Show sandbox health, blueprint state, and inference.     |
 | `openclaw nemoclaw logs [-f]`              | Stream blueprint execution and sandbox logs.             |
 | `openclaw nemoclaw eject`                  | Roll back to the host installation from a snapshot.      |
 
 See the full [CLI reference](https://docs.nvidia.com/nemoclaw/latest/reference/commands.md) for all commands, flags, and options.
+
+> **Known limitations:**
+> - The `openclaw nemoclaw migrate` command is not yet functional. New installs through `nemoclaw setup` work end-to-end.
+> - The `openclaw nemoclaw` plugin commands are under active development. Use the `nemoclaw` host CLI as the primary interface.
+> - Setup may require manual workarounds on some platforms. File an issue if you encounter blockers.
+
 
 ## Learn More
 
