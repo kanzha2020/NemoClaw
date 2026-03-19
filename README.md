@@ -70,8 +70,8 @@ The sandbox image is approximately 2.4 GB compressed. During image push, the Doc
 Download and run the installer script.
 The script installs Node.js if it is not already present, then runs the guided onboard wizard to create a sandbox, configure inference, and apply security policies.
 
-```console
-$ curl -fsSL https://www.nvidia.com/nemoclaw.sh | bash
+```bash
+curl -fsSL https://www.nvidia.com/nemoclaw.sh | bash
 ```
 
 If you use nvm or fnm to manage Node.js, the installer may not update your current shell's PATH.
@@ -96,16 +96,20 @@ Logs:        nemoclaw my-assistant logs --follow
 
 Connect to the sandbox, then chat with the agent through the TUI or the CLI.
 
-```console
-$ nemoclaw my-assistant connect
+#### Connect to the Sandbox
+
+```bash
+nemoclaw my-assistant connect
 ```
+
+This opens the sandbox shell `sandbox@my-assistant:~$` where you can run `openclaw` commands.
 
 #### OpenClaw TUI
 
-The OpenClaw TUI opens an interactive chat interface. Type a message and press Enter to send it to the agent:
+In the sandbox shell, run the following command to open the OpenClaw TUI, which opens an interactive chat interface.
 
-```console
-sandbox@my-assistant:~$ openclaw tui
+```bash
+openclaw tui
 ```
 
 Send a test message to the agent and verify you receive a response.
@@ -114,26 +118,26 @@ Send a test message to the agent and verify you receive a response.
 >
 > The TUI is best for interactive back-and-forth. If you need the full text of a long response (for example, large code generation output), use the CLI instead:
 >
-> ```console
-> sandbox@my-assistant:~$ openclaw agent --agent main --local -m "<prompt>" --session-id <id>
+> ```bash
+> openclaw agent --agent main --local -m "<prompt>" --session-id <id>
 > ```
 >
 > This prints the complete response directly in the terminal and avoids relying on the TUI view for long output.
 
 #### OpenClaw CLI
 
-Use the OpenClaw CLI to send a single message and print the response:
+In the sandbox shell, run the following command to send a single message and print the response:
 
-```console
-sandbox@my-assistant:~$ openclaw agent --agent main --local -m "hello" --session-id test
+```bash
+openclaw agent --agent main --local -m "hello" --session-id test
 ```
 
 ### Uninstall
 
-To remove NemoClaw and all resources created during setup, run the [uninstall script](https://github.com/NVIDIA/NemoClaw/blob/main/uninstall.sh) from the repo root:
+To remove NemoClaw and all resources created during setup, in the terminal outside the sandbox, run the [uninstall script](https://github.com/NVIDIA/NemoClaw/blob/main/uninstall.sh):
 
-```console
-$ ./uninstall.sh
+```bash
+./uninstall.sh
 ```
 
 The script removes sandboxes, the NemoClaw gateway and providers, related Docker images and containers, local state directories, and the global `nemoclaw` npm package. It does not remove shared system tooling such as Docker, Node.js, npm, or Ollama.
