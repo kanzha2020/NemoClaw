@@ -90,7 +90,7 @@ function shellQuote(value) {
 }
 
 function getStableGatewayImageRef(versionOutput = null) {
-  const output = versionOutput || runCapture("openshell -V", { ignoreError: true });
+  const output = String(versionOutput ?? runCapture("openshell -V", { ignoreError: true })).trim();
   const match = output.match(/openshell\s+([0-9]+\.[0-9]+\.[0-9]+)/i);
   if (!match) return null;
   return `ghcr.io/nvidia/openshell/cluster:${match[1]}`;
