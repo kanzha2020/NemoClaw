@@ -3,7 +3,7 @@ title:
   page: "NemoClaw Inference Profiles"
   nav: "Inference Profiles"
 description: "Configuration reference for NemoClaw routed inference providers."
-keywords: ["nemoclaw inference profiles", "nemoclaw provider routing"]
+keywords: ["NemoClaw inference profiles", "NemoClaw provider routing"]
 topics: ["generative_ai", "ai_agents"]
 tags: ["openclaw", "openshell", "inference_routing", "llms"]
 content:
@@ -48,6 +48,7 @@ The following non-experimental provider paths are available through `nemoclaw on
 | Anthropic | Native Anthropic | Uses `anthropic-messages` |
 | Other Anthropic-compatible endpoint | Custom Anthropic-compatible | For Claude proxies and compatible gateways |
 | Google Gemini | OpenAI-compatible | Uses Google's OpenAI-compatible endpoint |
+| Local Ollama | OpenAI-compatible | Local Ollama runtime routed through `inference.local` |
 
 ## Validation During Onboarding
 
@@ -66,12 +67,13 @@ If validation fails, the wizard does not continue to sandbox creation.
 
 ## Local Providers
 
-Local providers are available behind the `NEMOCLAW_EXPERIMENTAL=1` gate.
-These use the same routed `inference.local` pattern, but the upstream runtime is local to the host.
+Some local providers use the same routed `inference.local` pattern, but the upstream runtime is local to the host.
 
 - Local Ollama
 - Local NVIDIA NIM
 - Local vLLM
+
+Only Local NVIDIA NIM and Local vLLM are behind the `NEMOCLAW_EXPERIMENTAL=1` gate.
 
 Ollama gets additional onboarding help:
 

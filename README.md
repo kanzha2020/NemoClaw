@@ -191,6 +191,7 @@ Supported non-experimental onboarding paths:
 | Anthropic | Curated Claude models plus `Other...` for manual model entry. |
 | Other Anthropic-compatible endpoint | For Claude proxies and compatible gateways. |
 | Google Gemini | Google's OpenAI-compatible endpoint. |
+| Local Ollama | Local model serving through Ollama with pull, warmup, and validation in onboarding. |
 
 During onboarding, NemoClaw validates the selected provider and model before it creates the sandbox:
 

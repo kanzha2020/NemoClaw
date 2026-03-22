@@ -1349,7 +1349,7 @@ async function setupNim(gpu) {
 
   let model = null;
   let provider = REMOTE_PROVIDER_CONFIG.build.providerName;
-  let nimContainer = null;
+  let nimPending = false;
   let endpointUrl = REMOTE_PROVIDER_CONFIG.build.endpointUrl;
   let credentialEnv = REMOTE_PROVIDER_CONFIG.build.credentialEnv;
   let preferredInferenceApi = null;
@@ -1596,29 +1596,10 @@ async function setupNim(gpu) {
 
         console.log(`  Pulling NIM image for ${model}...`);
         nim.pullNimImage(model);
-
-        console.log("  Starting NIM container...");
-        nimContainer = nim.startNimContainerByName(nim.containerName(GATEWAY_NAME), model);
-
-        console.log("  Waiting for NIM to become healthy...");
-        if (!nim.waitForNimHealth()) {
-          console.error("  NIM failed to start. Falling back to cloud API.");
-          model = null;
-          nimContainer = null;
-        } else {
-          provider = "vllm-local";
-          credentialEnv = "OPENAI_API_KEY";
-          endpointUrl = getLocalProviderBaseUrl(provider);
-          preferredInferenceApi = await validateOpenAiLikeSelection(
-            "Local NVIDIA NIM",
-            endpointUrl,
-            model,
-            credentialEnv
-          );
-          if (!preferredInferenceApi) {
-            continue selectionLoop;
-          }
-        }
+        provider = "nim-local";
+        credentialEnv = "OPENAI_API_KEY";
+        endpointUrl = getLocalProviderBaseUrl(provider);
+        nimPending = true;
       }
       break;
     } else if (selected.key === "ollama") {
@@ -1721,7 +1702,7 @@ async function setupNim(gpu) {
     }
   }
 
-  return { model, provider, endpointUrl, credentialEnv, preferredInferenceApi, nimContainer };
+  return { model, provider, endpointUrl, credentialEnv, preferredInferenceApi, nimPending };
 }
 
 // ── Step 5: Inference provider ───────────────────────────────────
@@ -1948,7 +1929,9 @@ function printDashboard(sandboxName, model, provider, nimContainer = null) {
   const nimLabel = nimStat.running ? "running" : "not running";
 
   let providerLabel = provider;
-  if (provider === "nvidia-prod" || provider === "nvidia-nim") providerLabel = "NVIDIA Endpoints";
+  if (provider === "nvidia-prod") providerLabel = "NVIDIA Endpoints";
+  else if (provider === "nim-local") providerLabel = "Local NVIDIA NIM";
+  else if (provider === "nvidia-nim") providerLabel = "NVIDIA Endpoints";
   else if (provider === "openai-api") providerLabel = "OpenAI";
   else if (provider === "anthropic-prod") providerLabel = "Anthropic";
   else if (provider === "compatible-anthropic-endpoint") providerLabel = "Other Anthropic-compatible endpoint";
@@ -1983,11 +1966,21 @@ async function onboard(opts = {}) {
   console.log("  ===================");
 
   const gpu = await preflight();
-  const { model, provider, endpointUrl, credentialEnv, preferredInferenceApi, nimContainer } = await setupNim(gpu);
+  const { model, provider, endpointUrl, credentialEnv, preferredInferenceApi, nimPending } = await setupNim(gpu);
   process.env.NEMOCLAW_OPENSHELL_BIN = getOpenshellBinary();
   await startGateway(gpu);
-  await setupInference(GATEWAY_NAME, model, provider, endpointUrl, credentialEnv);
   const sandboxName = await createSandbox(gpu, model, provider, preferredInferenceApi);
+  let nimContainer = null;
+  if (nimPending) {
+    console.log(`  Starting NIM container for ${model}...`);
+    nimContainer = nim.startNimContainer(sandboxName, model);
+    console.log("  Waiting for NIM to become healthy...");
+    if (!nim.waitForNimHealth()) {
+      console.error("  NIM failed to start.");
+      process.exit(1);
+    }
+  }
+  await setupInference(GATEWAY_NAME, model, provider, endpointUrl, credentialEnv);
   if (nimContainer) {
     registry.updateSandbox(sandboxName, { nimContainer });
   }

@@ -198,7 +198,7 @@ runner.runCapture = (command) => {
       "Gateway inference:",
       "",
       "  Route: inference.local",
-      "  Provider: nvidia-nim",
+      "  Provider: nvidia-prod",
       "  Model: nvidia/nemotron-3-super-120b-a12b",
       "  Version: 1",
     ].join("\n");
@@ -212,7 +212,7 @@ process.env.NVIDIA_API_KEY = "nvapi-secret-value";
 const { setupInference } = require(${onboardPath});
 
 (async () => {
-  await setupInference("test-box", "nvidia/nemotron-3-super-120b-a12b", "nvidia-nim");
+  await setupInference("test-box", "nvidia/nemotron-3-super-120b-a12b", "nvidia-prod");
   console.log(JSON.stringify(commands));
 })().catch((error) => {
   console.error(error);

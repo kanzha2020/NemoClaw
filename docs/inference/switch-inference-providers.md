@@ -91,7 +91,8 @@ The output includes the active provider, model, and endpoint.
 
 - The host keeps provider credentials.
 - The sandbox continues to use `inference.local`.
-- Runtime switching changes the OpenShell route. It does not rewrite your stored credentials.
+- Runtime switching changes the OpenShell route.
+- It does not rewrite your stored credentials.
 
 ## Related Topics
 
