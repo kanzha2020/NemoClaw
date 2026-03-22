@@ -63,7 +63,7 @@ describe("binaries restriction: policy presets", () => {
     const missing = [];
     for (const file of presets) {
       const content = fs.readFileSync(path.join(PRESETS_DIR, file), "utf-8");
-      if (!content.includes("binaries:")) {
+      if (!/^\s+binaries:\s*$/m.test(content)) {
         missing.push(file);
       }
     }

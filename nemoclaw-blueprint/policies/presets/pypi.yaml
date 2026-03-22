@@ -26,3 +26,4 @@ network_policies:
     binaries:
       - { path: /usr/local/bin/pip }
       - { path: /usr/local/bin/pip3 }
+      - { path: /usr/local/bin/python3 }

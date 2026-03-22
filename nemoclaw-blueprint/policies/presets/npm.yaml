@@ -25,4 +25,6 @@ network_policies:
           - allow: { method: GET, path: "/**" }
     binaries:
       - { path: /usr/local/bin/npm }
+      - { path: /usr/local/bin/npx }
       - { path: /usr/local/bin/yarn }
+      - { path: /usr/local/bin/node }
