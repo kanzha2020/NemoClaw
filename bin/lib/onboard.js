@@ -1598,7 +1598,7 @@ async function setupNim(gpu) {
         nim.pullNimImage(model);
 
         console.log("  Starting NIM container...");
-        nimContainer = nim.startNimContainer(sandboxName, model);
+        nimContainer = nim.startNimContainerByName(nim.containerName(GATEWAY_NAME), model);
 
         console.log("  Waiting for NIM to become healthy...");
         if (!nim.waitForNimHealth()) {
@@ -1721,11 +1721,7 @@ async function setupNim(gpu) {
     }
   }
 
-  if (nimContainer) {
-    registry.updateSandbox(sandboxName, { nimContainer });
-  }
-
-  return { model, provider, endpointUrl, credentialEnv, preferredInferenceApi };
+  return { model, provider, endpointUrl, credentialEnv, preferredInferenceApi, nimContainer };
 }
 
 // ── Step 5: Inference provider ───────────────────────────────────
@@ -1947,8 +1943,8 @@ async function setupPolicies(sandboxName) {
 
 // ── Dashboard ────────────────────────────────────────────────────
 
-function printDashboard(sandboxName, model, provider) {
-  const nimStat = nim.nimStatus(sandboxName);
+function printDashboard(sandboxName, model, provider, nimContainer = null) {
+  const nimStat = nimContainer ? nim.nimStatusByName(nimContainer) : nim.nimStatus(sandboxName);
   const nimLabel = nimStat.running ? "running" : "not running";
 
   let providerLabel = provider;
@@ -1987,14 +1983,17 @@ async function onboard(opts = {}) {
   console.log("  ===================");
 
   const gpu = await preflight();
-  const { model, provider, endpointUrl, credentialEnv, preferredInferenceApi } = await setupNim(gpu);
+  const { model, provider, endpointUrl, credentialEnv, preferredInferenceApi, nimContainer } = await setupNim(gpu);
   process.env.NEMOCLAW_OPENSHELL_BIN = getOpenshellBinary();
   await startGateway(gpu);
   await setupInference(GATEWAY_NAME, model, provider, endpointUrl, credentialEnv);
   const sandboxName = await createSandbox(gpu, model, provider, preferredInferenceApi);
+  if (nimContainer) {
+    registry.updateSandbox(sandboxName, { nimContainer });
+  }
   await setupOpenclaw(sandboxName, model, provider);
   await setupPolicies(sandboxName);
-  printDashboard(sandboxName, model, provider);
+  printDashboard(sandboxName, model, provider, nimContainer);
 }
 
 module.exports = {

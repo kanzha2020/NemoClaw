@@ -101,8 +101,8 @@ describe("local inference helpers", () => {
     );
   });
 
-  it("falls back to the default ollama model when list output is empty", () => {
-    assert.deepEqual(getOllamaModelOptions(() => ""), [DEFAULT_OLLAMA_MODEL]);
+  it("returns no installed ollama models when list output is empty", () => {
+    assert.deepEqual(getOllamaModelOptions(() => ""), []);
   });
 
   it("prefers the default ollama model when present", () => {
