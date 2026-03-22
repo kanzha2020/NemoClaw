@@ -43,16 +43,16 @@ describe("inference selection config", () => {
     });
   });
 
-  it("maps nvidia-nim to the sandbox inference route", () => {
-    assert.deepEqual(getProviderSelectionConfig("nvidia-nim", "nvidia/nemotron-3-super-120b-a12b"), {
+  it("maps nvidia-prod to the sandbox inference route", () => {
+    assert.deepEqual(getProviderSelectionConfig("nvidia-prod", "nvidia/nemotron-3-super-120b-a12b"), {
       endpointType: "custom",
       endpointUrl: INFERENCE_ROUTE_URL,
       ncpPartner: null,
       model: "nvidia/nemotron-3-super-120b-a12b",
       profile: DEFAULT_ROUTE_PROFILE,
       credentialEnv: DEFAULT_ROUTE_CREDENTIAL_ENV,
-      provider: "nvidia-nim",
-      providerLabel: "NVIDIA Endpoint API",
+      provider: "nvidia-prod",
+      providerLabel: "NVIDIA Endpoints",
     });
   });
 
