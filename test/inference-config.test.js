@@ -56,6 +56,19 @@ describe("inference selection config", () => {
     });
   });
 
+  it("maps compatible-anthropic-endpoint to the sandbox inference route", () => {
+    assert.deepEqual(getProviderSelectionConfig("compatible-anthropic-endpoint", "claude-sonnet-proxy"), {
+      endpointType: "custom",
+      endpointUrl: INFERENCE_ROUTE_URL,
+      ncpPartner: null,
+      model: "claude-sonnet-proxy",
+      profile: DEFAULT_ROUTE_PROFILE,
+      credentialEnv: "COMPATIBLE_ANTHROPIC_API_KEY",
+      provider: "compatible-anthropic-endpoint",
+      providerLabel: "Other Anthropic-compatible endpoint",
+    });
+  });
+
   it("builds a qualified OpenClaw primary model for ollama-local", () => {
     assert.equal(
       getOpenClawPrimaryModel("ollama-local", "nemotron-3-nano:30b"),
