@@ -148,6 +148,12 @@ async function deploy(instanceName) {
 
   run(`brev refresh`, { ignoreError: true });
 
+  // ── SSH trust-on-first-use (TOFU) ──────────────────────────────
+  // We allow the first probe to accept any key (the VM was just created),
+  // then immediately pin the host key for every subsequent connection.
+  const khDir = fs.mkdtempSync(path.join(os.tmpdir(), "nemoclaw-ssh-"));
+  const knownHostsFile = path.join(khDir, "known_hosts");
+
   process.stdout.write(`  Waiting for SSH `);
   for (let i = 0; i < 60; i++) {
     try {
@@ -158,6 +164,7 @@ async function deploy(instanceName) {
       if (i === 59) {
         process.stdout.write("\n");
         console.error(`  Timed out waiting for SSH to ${name}`);
+        fs.rmSync(khDir, { recursive: true, force: true });
         process.exit(1);
       }
       process.stdout.write(".");
@@ -165,41 +172,51 @@ async function deploy(instanceName) {
     }
   }
 
-  console.log("  Syncing NemoClaw to VM...");
-  run(`ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR ${qname} 'mkdir -p /home/ubuntu/nemoclaw'`);
-  run(`rsync -az --delete --exclude node_modules --exclude .git --exclude src -e "ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR" "${ROOT}/scripts" "${ROOT}/Dockerfile" "${ROOT}/nemoclaw" "${ROOT}/nemoclaw-blueprint" "${ROOT}/bin" "${ROOT}/package.json" ${qname}:/home/ubuntu/nemoclaw/`);
+  // Pin the host key now that the VM is reachable
+  const hostKeys = execFileSync("ssh-keyscan", ["-H", name], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] });
+  fs.writeFileSync(knownHostsFile, hostKeys, { mode: 0o600 });
 
-  const envLines = [`NVIDIA_API_KEY=${shellQuote(process.env.NVIDIA_API_KEY || "")}`];
-  const ghToken = process.env.GITHUB_TOKEN;
-  if (ghToken) envLines.push(`GITHUB_TOKEN=${shellQuote(ghToken)}`);
-  const tgToken = getCredential("TELEGRAM_BOT_TOKEN");
-  if (tgToken) envLines.push(`TELEGRAM_BOT_TOKEN=${shellQuote(tgToken)}`);
-  const discordToken = getCredential("DISCORD_BOT_TOKEN");
-  if (discordToken) envLines.push(`DISCORD_BOT_TOKEN=${shellQuote(discordToken)}`);
-  const slackToken = getCredential("SLACK_BOT_TOKEN");
-  if (slackToken) envLines.push(`SLACK_BOT_TOKEN=${shellQuote(slackToken)}`);
-  const envDir = fs.mkdtempSync(path.join(os.tmpdir(), "nemoclaw-env-"));
-  const envTmp = path.join(envDir, "env");
-  fs.writeFileSync(envTmp, envLines.join("\n") + "\n", { mode: 0o600 });
+  const sshOpts = `-o UserKnownHostsFile=${shellQuote(knownHostsFile)} -o StrictHostKeyChecking=yes -o LogLevel=ERROR`;
+
   try {
-    run(`scp -q -o StrictHostKeyChecking=no -o LogLevel=ERROR ${shellQuote(envTmp)} ${qname}:/home/ubuntu/nemoclaw/.env`);
+    console.log("  Syncing NemoClaw to VM...");
+    run(`ssh ${sshOpts} ${qname} 'mkdir -p /home/ubuntu/nemoclaw'`);
+    run(`rsync -az --delete --exclude node_modules --exclude .git --exclude src -e "ssh ${sshOpts}" "${ROOT}/scripts" "${ROOT}/Dockerfile" "${ROOT}/nemoclaw" "${ROOT}/nemoclaw-blueprint" "${ROOT}/bin" "${ROOT}/package.json" ${qname}:/home/ubuntu/nemoclaw/`);
+
+    const envLines = [`NVIDIA_API_KEY=${shellQuote(process.env.NVIDIA_API_KEY || "")}`];
+    const ghToken = process.env.GITHUB_TOKEN;
+    if (ghToken) envLines.push(`GITHUB_TOKEN=${shellQuote(ghToken)}`);
+    const tgToken = getCredential("TELEGRAM_BOT_TOKEN");
+    if (tgToken) envLines.push(`TELEGRAM_BOT_TOKEN=${shellQuote(tgToken)}`);
+    const discordToken = getCredential("DISCORD_BOT_TOKEN");
+    if (discordToken) envLines.push(`DISCORD_BOT_TOKEN=${shellQuote(discordToken)}`);
+    const slackToken = getCredential("SLACK_BOT_TOKEN");
+    if (slackToken) envLines.push(`SLACK_BOT_TOKEN=${shellQuote(slackToken)}`);
+    const envDir = fs.mkdtempSync(path.join(os.tmpdir(), "nemoclaw-env-"));
+    const envTmp = path.join(envDir, "env");
+    fs.writeFileSync(envTmp, envLines.join("\n") + "\n", { mode: 0o600 });
+    try {
+      run(`scp -q ${sshOpts} ${shellQuote(envTmp)} ${qname}:/home/ubuntu/nemoclaw/.env`);
+    } finally {
+      try { fs.unlinkSync(envTmp); } catch {}
+      try { fs.rmdirSync(envDir); } catch {}
+    }
+
+    console.log("  Running setup...");
+    runInteractive(`ssh -t ${sshOpts} ${qname} 'cd /home/ubuntu/nemoclaw && set -a && . .env && set +a && bash scripts/brev-setup.sh'`);
+
+    if (tgToken) {
+      console.log("  Starting services...");
+      run(`ssh ${sshOpts} ${qname} 'cd /home/ubuntu/nemoclaw && set -a && . .env && set +a && bash scripts/start-services.sh'`);
+    }
+
+    console.log("");
+    console.log("  Connecting to sandbox...");
+    console.log("");
+    runInteractive(`ssh -t ${sshOpts} ${qname} 'cd /home/ubuntu/nemoclaw && set -a && . .env && set +a && openshell sandbox connect nemoclaw'`);
   } finally {
-    try { fs.unlinkSync(envTmp); } catch {}
-    try { fs.rmdirSync(envDir); } catch {}
+    fs.rmSync(khDir, { recursive: true, force: true });
   }
-
-  console.log("  Running setup...");
-  runInteractive(`ssh -t -o StrictHostKeyChecking=no -o LogLevel=ERROR ${qname} 'cd /home/ubuntu/nemoclaw && set -a && . .env && set +a && bash scripts/brev-setup.sh'`);
-
-  if (tgToken) {
-    console.log("  Starting services...");
-    run(`ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR ${qname} 'cd /home/ubuntu/nemoclaw && set -a && . .env && set +a && bash scripts/start-services.sh'`);
-  }
-
-  console.log("");
-  console.log("  Connecting to sandbox...");
-  console.log("");
-  runInteractive(`ssh -t -o StrictHostKeyChecking=no -o LogLevel=ERROR ${qname} 'cd /home/ubuntu/nemoclaw && set -a && . .env && set +a && openshell sandbox connect nemoclaw'`);
 }
 
 async function start() {
