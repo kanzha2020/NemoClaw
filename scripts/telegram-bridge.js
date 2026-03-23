@@ -13,7 +13,8 @@
  *   TELEGRAM_BOT_TOKEN  — from @BotFather
  *   NVIDIA_API_KEY      — for inference
  *   SANDBOX_NAME        — sandbox name (default: nemoclaw)
- *   ALLOWED_CHAT_IDS    — comma-separated Telegram chat IDs to accept (optional, accepts all if unset)
+ *   ALLOWED_CHAT_IDS    — comma-separated Telegram chat IDs to accept (required unless ALLOW_ALL_CHATS=true)
+ *   ALLOW_ALL_CHATS     — set to "true" to explicitly allow messages from all chats
  */
 
 const https = require("https");
@@ -35,6 +36,21 @@ try { validateName(SANDBOX, "SANDBOX_NAME"); } catch (e) { console.error(e.messa
 const ALLOWED_CHATS = process.env.ALLOWED_CHAT_IDS
   ? process.env.ALLOWED_CHAT_IDS.split(",").map((s) => s.trim())
   : null;
+
+const WARN_OPEN_ACCESS = !ALLOWED_CHATS && process.env.ALLOW_ALL_CHATS !== "true";
+const seenChats = new Set();
+if (!ALLOWED_CHATS) {
+  if (WARN_OPEN_ACCESS) {
+    console.warn("");
+    console.warn("  ⚠  ALLOWED_CHAT_IDS is not set — the bridge will accept messages from ALL Telegram chats.");
+    console.warn("     Set ALLOWED_CHAT_IDS to a comma-separated list of chat IDs to restrict access,");
+    console.warn("     or set ALLOW_ALL_CHATS=true to silence this warning.");
+    console.warn("     Chat IDs will be logged below so you can build your allowlist.");
+    console.warn("");
+  } else {
+    console.warn("WARNING: ALLOW_ALL_CHATS=true — accepting messages from all Telegram chats.");
+  }
+}
 
 if (!TOKEN) { console.error("TELEGRAM_BOT_TOKEN required"); process.exit(1); }
 if (!API_KEY) { console.error("NVIDIA_API_KEY required"); process.exit(1); }
@@ -174,6 +190,10 @@ async function poll() {
         if (ALLOWED_CHATS && !ALLOWED_CHATS.includes(chatId)) {
           console.log(`[ignored] chat ${chatId} not in allowed list`);
           continue;
+        }
+        if (WARN_OPEN_ACCESS && !seenChats.has(chatId)) {
+          seenChats.add(chatId);
+          console.warn(`  ⚠  [open-access] new chat ${chatId} from ${userName} — add to ALLOWED_CHAT_IDS to pin access`);
         }
 
         const userName = msg.from?.first_name || "someone";
