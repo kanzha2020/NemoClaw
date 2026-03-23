@@ -207,5 +207,17 @@ describe("runner helpers", () => {
       expect(src.includes("validateName(SANDBOX")).toBeTruthy();
       expect(!src.includes("execSync")).toBeTruthy();
     });
+
+    it("install.sh verifies OpenShell binary checksum after download", () => {
+      const src = fs.readFileSync(path.join(import.meta.dirname, "..", "scripts", "install.sh"), "utf-8");
+      expect(src).toContain("openshell-checksums-sha256.txt");
+      expect(src).toContain("shasum -a 256 -c");
+    });
+
+    it("install-openshell.sh verifies OpenShell binary checksum after download", () => {
+      const src = fs.readFileSync(path.join(import.meta.dirname, "..", "scripts", "install-openshell.sh"), "utf-8");
+      expect(src).toContain("openshell-checksums-sha256.txt");
+      expect(src).toContain("shasum -a 256 -c");
+    });
   });
 });
