@@ -38,10 +38,12 @@ if ! command -v node > /dev/null 2>&1; then
   info "Installing Node.js..."
   # Upstream URL is a rolling release so SHA-256 pinning isn't practical,
   # but download-then-execute allows inspection and prevents partial-download execution.
-  tmpdir=$(mktemp -d)
-  curl -fsSL https://deb.nodesource.com/setup_22.x -o "$tmpdir/setup_node.sh"
-  sudo -E bash "$tmpdir/setup_node.sh" > /dev/null 2>&1
-  rm -rf "$tmpdir"
+  (
+    tmpdir="$(mktemp -d)"
+    trap 'rm -rf "$tmpdir"' EXIT
+    curl -fsSL https://deb.nodesource.com/setup_22.x -o "$tmpdir/setup_node.sh"
+    sudo -E bash "$tmpdir/setup_node.sh" > /dev/null 2>&1
+  )
   sudo apt-get install -y -qq nodejs > /dev/null 2>&1
   info "Node.js $(node --version) installed"
 else

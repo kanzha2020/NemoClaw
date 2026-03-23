@@ -243,17 +243,23 @@ function uninstall(args) {
   console.log(`  Local uninstall script not found; falling back to ${REMOTE_UNINSTALL_URL}`);
   const uninstallDir = fs.mkdtempSync(path.join(os.tmpdir(), "nemoclaw-uninstall-"));
   const uninstallScript = path.join(uninstallDir, "uninstall.sh");
+  let result;
   try {
-    execFileSync("curl", ["-fsSL", REMOTE_UNINSTALL_URL, "-o", uninstallScript], { stdio: "inherit" });
-    const result = spawnSync("bash", [uninstallScript, ...args], {
+    try {
+      execFileSync("curl", ["-fsSL", REMOTE_UNINSTALL_URL, "-o", uninstallScript], { stdio: "inherit" });
+    } catch {
+      console.error(`  Failed to download uninstall script from ${REMOTE_UNINSTALL_URL}`);
+      process.exit(1);
+    }
+    result = spawnSync("bash", [uninstallScript, ...args], {
       stdio: "inherit",
       cwd: ROOT,
       env: process.env,
     });
-    exitWithSpawnResult(result);
   } finally {
     fs.rmSync(uninstallDir, { recursive: true, force: true });
   }
+  exitWithSpawnResult(result);
 }
 
 function showStatus() {

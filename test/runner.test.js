@@ -210,39 +210,59 @@ describe("runner helpers", () => {
   });
 
   describe("curl-pipe-to-shell guards (#574, #583)", () => {
-    // Match actual curl-pipe-to-shell executions, not printf/echo documentation
-    const isViolation = (line) => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("#") || trimmed.startsWith("printf") || trimmed.startsWith("echo")) return false;
-      return /curl\s[^|]*\|\s*(sh|bash|sudo)/.test(trimmed);
+    // Strip comment lines, then join line continuations so multiline
+    // curl ... |\n  bash patterns are caught by the single-line regex.
+    const stripComments = (src, commentPrefix) =>
+      src.split("\n").filter((l) => !l.trim().startsWith(commentPrefix)).join("\n");
+
+    const joinContinuations = (src) =>
+      src.replace(/\\\n\s*/g, " ");
+
+    const collapseMultilinePipes = (src) =>
+      src.replace(/\|\s*\n\s*/g, "| ");
+
+    const normalize = (src, commentPrefix) =>
+      collapseMultilinePipes(joinContinuations(stripComments(src, commentPrefix)));
+
+    const shellViolationRe = /curl\s[^|]*\|\s*(sh|bash|sudo\s+(-\S+\s+)*(sh|bash))\b/;
+    const jsViolationRe = /curl.*\|\s*(sh|bash|sudo\s+(-\S+\s+)*(sh|bash))\b/;
+
+    const findShellViolations = (src) => {
+      const normalized = normalize(src, "#");
+      return normalized.split("\n").filter((line) => {
+        const t = line.trim();
+        if (t.startsWith("printf") || t.startsWith("echo")) return false;
+        return shellViolationRe.test(t);
+      });
+    };
+
+    const findJsViolations = (src) => {
+      const normalized = normalize(src, "//");
+      return normalized.split("\n").filter((line) => {
+        const t = line.trim();
+        if (t.startsWith("*")) return false;
+        return jsViolationRe.test(t);
+      });
     };
 
     it("install.sh does not pipe curl to shell", () => {
       const src = fs.readFileSync(path.join(import.meta.dirname, "..", "install.sh"), "utf-8");
-      const violations = src.split("\n").filter(isViolation);
-      expect(violations).toEqual([]);
+      expect(findShellViolations(src)).toEqual([]);
     });
 
     it("scripts/install.sh does not pipe curl to shell", () => {
       const src = fs.readFileSync(path.join(import.meta.dirname, "..", "scripts", "install.sh"), "utf-8");
-      const violations = src.split("\n").filter(isViolation);
-      expect(violations).toEqual([]);
+      expect(findShellViolations(src)).toEqual([]);
     });
 
     it("scripts/brev-setup.sh does not pipe curl to shell", () => {
       const src = fs.readFileSync(path.join(import.meta.dirname, "..", "scripts", "brev-setup.sh"), "utf-8");
-      const violations = src.split("\n").filter(isViolation);
-      expect(violations).toEqual([]);
+      expect(findShellViolations(src)).toEqual([]);
     });
 
     it("bin/nemoclaw.js does not pipe curl to shell", () => {
       const src = fs.readFileSync(path.join(import.meta.dirname, "..", "bin", "nemoclaw.js"), "utf-8");
-      const violations = src.split("\n").filter((l) => {
-        const t = l.trim();
-        if (t.startsWith("//") || t.startsWith("*")) return false;
-        return /curl.*\|\s*(sh|bash|sudo)/.test(t);
-      });
-      expect(violations).toEqual([]);
+      expect(findJsViolations(src)).toEqual([]);
     });
   });
 });

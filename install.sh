@@ -357,10 +357,12 @@ install_or_upgrade_ollama() {
       info "Ollama v${current:-unknown} is below v${OLLAMA_MIN_VERSION} — upgrading…"
       # Upstream URL is a rolling release so SHA-256 pinning isn't practical,
       # but download-then-execute allows inspection and prevents partial-download execution.
-      tmpdir=$(mktemp -d)
-      curl -fsSL https://ollama.com/install.sh -o "$tmpdir/install_ollama.sh"
-      sh "$tmpdir/install_ollama.sh"
-      rm -rf "$tmpdir"
+      (
+        tmpdir="$(mktemp -d)"
+        trap 'rm -rf "$tmpdir"' EXIT
+        curl -fsSL https://ollama.com/install.sh -o "$tmpdir/install_ollama.sh"
+        sh "$tmpdir/install_ollama.sh"
+      )
       info "Ollama upgraded to $(get_ollama_version)"
     fi
   else
@@ -369,10 +371,12 @@ install_or_upgrade_ollama() {
       info "GPU detected — installing Ollama…"
       # Upstream URL is a rolling release so SHA-256 pinning isn't practical,
       # but download-then-execute allows inspection and prevents partial-download execution.
-      tmpdir=$(mktemp -d)
-      curl -fsSL https://ollama.com/install.sh -o "$tmpdir/install_ollama.sh"
-      sh "$tmpdir/install_ollama.sh"
-      rm -rf "$tmpdir"
+      (
+        tmpdir="$(mktemp -d)"
+        trap 'rm -rf "$tmpdir"' EXIT
+        curl -fsSL https://ollama.com/install.sh -o "$tmpdir/install_ollama.sh"
+        sh "$tmpdir/install_ollama.sh"
+      )
       info "Ollama installed: v$(get_ollama_version)"
     else
       warn "No GPU detected — skipping Ollama installation."
