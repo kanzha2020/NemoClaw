@@ -1156,11 +1156,13 @@ async function setupInference(sandboxName, model, provider) {
     const name = sidecar.getProviderName();
     const cred = sidecar.getCredential();
     const baseUrl = getLocalProviderBaseUrl(provider);
+    // Local sidecars don't need real API keys — set a dummy credential via env
+    // so it's not exposed in process args (satisfies credential-exposure checks).
     run(
-      `openshell provider create --name ${name} --type openai ` +
+      `OPENAI_API_KEY=${shellQuote(cred)} openshell provider create --name ${name} --type openai ` +
       `--credential "OPENAI_API_KEY" ` +
       `--config "OPENAI_BASE_URL=${baseUrl}" 2>&1 || ` +
-      `openshell provider update ${name} --credential "OPENAI_API_KEY" ` +
+      `OPENAI_API_KEY=${shellQuote(cred)} openshell provider update ${name} --credential "OPENAI_API_KEY" ` +
       `--config "OPENAI_BASE_URL=${baseUrl}" 2>&1 || true`,
       { ignoreError: true }
     );
@@ -1214,10 +1216,10 @@ async function setupInference(sandboxName, model, provider) {
     }
     const baseUrl = getLocalProviderBaseUrl(provider);
     run(
-      `openshell provider create --name lmstudio-local --type openai ` +
+      `OPENAI_API_KEY=lm-studio openshell provider create --name lmstudio-local --type openai ` +
       `--credential "OPENAI_API_KEY" ` +
       `--config "OPENAI_BASE_URL=${baseUrl}" 2>&1 || ` +
-      `openshell provider update lmstudio-local --credential "OPENAI_API_KEY" ` +
+      `OPENAI_API_KEY=lm-studio openshell provider update lmstudio-local --credential "OPENAI_API_KEY" ` +
       `--config "OPENAI_BASE_URL=${baseUrl}" 2>&1 || true`,
       { ignoreError: true }
     );
