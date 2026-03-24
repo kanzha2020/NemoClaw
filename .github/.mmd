@@ -1,0 +1,176 @@
+graph TB
+    subgraph User["👤 User / Operator"]
+        CLI_USER["Terminal"]
+    end
+
+    subgraph Host["🖥️ Host Machine"]
+        subgraph Install["install.sh"]
+            INSTALL_NODE["Install Node.js"]
+            INSTALL_CLI["Install NemoClaw CLI"]
+            RUN_ONBOARD["Run Onboarding"]
+        end
+
+        subgraph NemoClawCLI["bin/nemoclaw.js — NemoClaw CLI"]
+            DISPATCH["Command Dispatcher"]
+            GLOBAL_CMD["Global Commands"]
+            SANDBOX_CMD["Sandbox Commands"]
+        end
+
+        subgraph BinLib["bin/lib/ — CLI Libraries"]
+            ONBOARD["onboard.js\n(Onboarding Wizard)"]
+            CREDENTIALS["credentials.js\n(API Key Management)"]
+            NIM["nim.js\n(NIM Provider Setup)"]
+            POLICIES_LIB["policies.js\n(Policy Management)"]
+            REGISTRY["registry.js\n(Sandbox Registry)"]
+            RUNNER["runner.js\n(Shell Executor)"]
+            PLATFORM["platform.js\n(OS Detection)"]
+            PREFLIGHT["preflight.js\n(Pre-checks)"]
+            INF_CONFIG["inference-config.js"]
+            LOCAL_INF["local-inference.js\n(Ollama/vLLM)"]
+            RESOLVE_OS["resolve-openshell.js"]
+        end
+
+        subgraph Scripts["scripts/ — Shell Scripts"]
+            SETUP_SH["setup.sh\n(Legacy Setup)"]
+            SETUP_SPARK["setup-spark.sh\n(DGX Spark)"]
+            START_SERVICES["start-services.sh"]
+            TELEGRAM["telegram-bridge.js\n(Telegram Bot)"]
+            FIX_DNS["fix-coredns.sh"]
+            INSTALL_OS["install-openshell.sh"]
+            DEBUG_SH["debug.sh"]
+        end
+
+        subgraph OpenShellRuntime["NVIDIA OpenShell Runtime"]
+            GATEWAY["OpenShell Gateway\n(Docker/k3s)"]
+            OPENSHELL_CLI["openshell CLI"]
+        end
+    end
+
+    subgraph DockerImage["🐳 Sandbox Docker Image (Dockerfile)"]
+        subgraph BuildStage["Stage 1: Builder"]
+            TS_BUILD["TypeScript Plugin Build\n(npm install + build)"]
+        end
+
+        subgraph RuntimeStage["Stage 2: Runtime"]
+            OPENCLAW_INSTALL["OpenClaw CLI\n(openclaw@2026.3.11)"]
+            PLUGIN_COPY["NemoClaw Plugin\n(dist/)"]
+            BP_COPY["Blueprint\n(nemoclaw-blueprint/)"]
+            STARTUP["nemoclaw-start.sh\n(Entrypoint)"]
+            CONFIG_JSON["openclaw.json\n(Immutable Config)"]
+            SANDBOX_USER["sandbox user\n(Landlock + seccomp + netns)"]
+        end
+    end
+
+    subgraph Plugin["nemoclaw/ — OpenClaw Plugin (TypeScript)"]
+        INDEX_TS["src/index.ts\n(Plugin Registration)"]
+        SLASH_CMD["src/commands/\n(Slash Commands)"]
+        ONBOARD_CFG["src/onboard/config.ts\n(Onboard Config)"]
+        BLUEPRINT_TS["src/blueprint/\n(Blueprint Handlers)"]
+    end
+
+    subgraph Blueprint["nemoclaw-blueprint/ — Blueprint (Python)"]
+        BP_YAML["blueprint.yaml\n(Versioned Manifest)"]
+        ORCHESTRATOR["orchestrator/runner.py\n(Resource Orchestration)"]
+        POLICY_FILES["policies/\n(YAML Policy Definitions)"]
+        MIGRATIONS["migrations/\n(Schema Upgrades)"]
+    end
+
+    subgraph Sandbox["📦 OpenShell Sandbox"]
+        subgraph SecurityLayers["Security Layers"]
+            NETWORK["Network Policy\n(Egress Control)"]
+            FILESYSTEM["Filesystem Policy\n(Landlock)"]
+            PROCESS["Process Policy\n(seccomp)"]
+            INFERENCE_POLICY["Inference Routing\n(Controlled Backends)"]
+        end
+
+        OPENCLAW_AGENT["OpenClaw Agent\n(Always-on Assistant)"]
+        NEMOCLAW_PLUGIN["NemoClaw Plugin\n(In-Sandbox)"]
+    end
+
+    subgraph External["☁️ External Services"]
+        NVIDIA_API["NVIDIA Endpoint API\n(build.nvidia.com)"]
+        NEMOTRON["nvidia/nemotron-3-super-120b-a12b"]
+        TELEGRAM_API["Telegram API"]
+    end
+
+    subgraph Testing["🧪 Test Suite"]
+        VITEST["Vitest\n(vitest.config.ts)"]
+        UNIT_TESTS["Unit Tests\n(test/*.test.js)"]
+        E2E_TESTS["E2E Tests\n(test/e2e/)"]
+        SECURITY_TESTS["Security Tests\n(injection, traversal)"]
+    end
+
+    %% User flows
+    CLI_USER -->|"curl install.sh"| Install
+    CLI_USER -->|"nemoclaw <cmd>"| NemoClawCLI
+    INSTALL_NODE --> INSTALL_CLI --> RUN_ONBOARD
+
+    %% CLI dispatch
+    DISPATCH --> GLOBAL_CMD
+    DISPATCH --> SANDBOX_CMD
+    GLOBAL_CMD -->|onboard| ONBOARD
+    GLOBAL_CMD -->|setup| SETUP_SH
+    GLOBAL_CMD -->|setup-spark| SETUP_SPARK
+    GLOBAL_CMD -->|start/stop| START_SERVICES
+    GLOBAL_CMD -->|debug| DEBUG_SH
+    SANDBOX_CMD -->|connect/status/logs| OPENSHELL_CLI
+
+    %% Onboarding flow
+    ONBOARD --> PREFLIGHT
+    ONBOARD --> GATEWAY
+    ONBOARD --> REGISTRY
+    ONBOARD --> NIM
+    ONBOARD --> POLICIES_LIB
+    ONBOARD --> CREDENTIALS
+    ONBOARD --> PLATFORM
+
+    %% CLI lib dependencies
+    NemoClawCLI --> RUNNER
+    RUNNER --> RESOLVE_OS
+    NIM --> INF_CONFIG
+    NIM --> LOCAL_INF
+
+    %% Docker build
+    TS_BUILD --> PLUGIN_COPY
+    Plugin --> TS_BUILD
+    Blueprint --> BP_COPY
+    STARTUP --> OPENCLAW_AGENT
+
+    %% Sandbox internals
+    GATEWAY -->|"creates & manages"| Sandbox
+    OPENCLAW_AGENT --> NEMOCLAW_PLUGIN
+    NEMOCLAW_PLUGIN --> INDEX_TS
+    OPENCLAW_AGENT -->|"inference via\ninference.local"| GATEWAY
+    GATEWAY -->|"routes API calls"| NVIDIA_API
+    NVIDIA_API --> NEMOTRON
+
+    %% Policy enforcement
+    POLICY_FILES --> NETWORK
+    POLICY_FILES --> FILESYSTEM
+    POLICY_FILES --> PROCESS
+    POLICY_FILES --> INFERENCE_POLICY
+    ORCHESTRATOR --> OPENSHELL_CLI
+
+    %% External bridges
+    TELEGRAM -->|"forwards messages"| OPENCLAW_AGENT
+    TELEGRAM --> TELEGRAM_API
+
+    %% Testing
+    VITEST --> UNIT_TESTS
+    VITEST --> E2E_TESTS
+    VITEST --> SECURITY_TESTS
+    UNIT_TESTS --> BinLib
+    UNIT_TESTS --> Plugin
+
+    %% Styling
+    classDef host fill:#e8f4fd,stroke:#2196F3
+    classDef sandbox fill:#fff3e0,stroke:#FF9800
+    classDef external fill:#e8f5e9,stroke:#4CAF50
+    classDef security fill:#fce4ec,stroke:#E91E63
+    classDef test fill:#f3e5f5,stroke:#9C27B0
+
+    class Host host
+    class Sandbox sandbox
+    class External external
+    class SecurityLayers security
+    class Testing test
